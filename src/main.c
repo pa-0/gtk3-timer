@@ -2,19 +2,19 @@
 	gcc main.c `pkg-config --cflags gtk+-3.0` `pkg-config --libs gtk+-3.0` -o timer */
 
 #include <gtk/gtk.h>
+#include "gtk_simplified.h"
 
-GtkWidget * window;
-GtkWidget * grid;
-
-GtkWidget * output_label;
 GtkWidget * pause_button;
 GtkWidget * quit_button;
-
-GString * output;
 
 GTimer * timer;
 gint64 end_time = 0;
 gint64 time_remaining = 0;
+
+GtkWidget * digits[6];
+
+GtkWidget * colon_0;
+GtkWidget * colon_1;
 
 // ------------------------------------------------------------------- utilities
 gint64 hms_to_seconds(gchar * time_input)
@@ -48,6 +48,12 @@ gint64 hms_to_seconds(gchar * time_input)
 		default:
 			seconds = -1;
 	}
+
+	if (seconds > 359999)
+	{
+		seconds = 359999;
+	}
+
     return seconds;
 }
 
@@ -58,7 +64,7 @@ gboolean on_timer_timeout(gpointer data)
 	time_remaining = end_time - (gint32)g_timer_elapsed(timer, NULL);
 	if (time_remaining < 0)
 	{
-		gtk_widget_destroy(window);
+		gtk_widget_destroy(main_window);
 		return FALSE;
 	}
 
@@ -66,8 +72,16 @@ gboolean on_timer_timeout(gpointer data)
 	gint32 minute = (time_remaining - (hour * 3600)) / 60;
 	gint32 second = (time_remaining - (hour * 3600) - (minute * 60));
 
-    g_string_printf(output, "%02d:%02d:%02d", hour, minute, second);
-    gtk_label_set_text( GTK_LABEL(output_label), output->str);
+	const gchar * time_output = g_strdup_printf("%02d%02d%02d", hour, minute, second);
+
+	for (int i = 0; i < 6; i++)
+	{
+		const gchar * file_name = g_strdup_printf("data/%c.png", time_output[i]);
+		gtk_image_set_from_file(GTK_IMAGE(digits[i]), file_name);
+		g_free( (gpointer)file_name );
+	}
+
+	g_free( (gpointer)time_output );
 
 	return TRUE;
 }
@@ -77,19 +91,18 @@ void on_pause_button_pressed(GtkWidget* widget, gpointer data)
 	if (g_timer_is_active(timer))
 	{
 		g_timer_stop(timer);
-		gtk_button_set_label( GTK_BUTTON(pause_button), "resume");
+		gtk_button_set_label( GTK_BUTTON(pause_button), "Resume");
 	}
 	else
 	{
 		g_timer_continue(timer);
-		gtk_button_set_label(GTK_BUTTON(pause_button), "pause");
+		gtk_button_set_label(GTK_BUTTON(pause_button), "Pause");
 	}
 }
 
 void on_quit_button_pressed(GtkWidget* widget, gpointer data)
 {
-	g_string_free(output, TRUE);
-	gtk_widget_destroy(window);
+	gtk_widget_destroy(main_window);
 }
 
 // ------------------------------------------------------------------------ main
@@ -103,49 +116,41 @@ gint32 main (gint32 argc, gchar **argv)
 	}
 
 	gint32 status;
-	output = g_string_new(NULL);
 
 	timer = g_timer_new();
 
-	gint32 hour = time_remaining / 3600;
-	gint32 minute = (time_remaining - (hour * 3600)) / 60;
-	gint32 second = (time_remaining - (hour * 3600) - (minute * 60));
-    g_string_printf(output, "%02d:%02d:%02d", hour, minute, second);
-
     gtk_init(&argc, &argv);
 
-	// ------------------------------------------- Create and set up main window
-    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(window), "Timer");
-    g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
-	gtk_window_set_resizable (GTK_WINDOW (window), FALSE);
-	gtk_container_set_border_width (GTK_CONTAINER (window), 5);
-
-	// ---------------------------------------- Create and pack grid into window
-	grid = gtk_grid_new ();
-	gtk_container_add (GTK_CONTAINER (window), grid);
-	gtk_grid_set_column_spacing( GTK_GRID(grid), 2);
-	gtk_grid_set_row_spacing( GTK_GRID(grid), 2);
+	create_window("Timer",265,113);
+	create_grid(5);
 
 	// ------------------------------------------------------------ Output label
-	output_label = gtk_label_new(output->str);
-	gtk_grid_attach (GTK_GRID (grid), output_label, 0,0,2,1);
+	for (int i = 0, offset = 0; i < 6; i++)
+	{
+		if (i == 2 || i == 4)
+		{
+			offset++;
+		}
+		digits[i] = gtk_image_new_from_file("data/0.png");
+		gtk_grid_attach(GTK_GRID(main_grid), digits[i], i+offset,0,1,1);		
+	}
 
-	// ------------------------------------------------------------------- Pause
-	pause_button = gtk_button_new_with_label("pause");
-	gtk_grid_attach (GTK_GRID (grid), pause_button, 0,1,1,1);	
-	g_signal_connect (pause_button, "clicked", G_CALLBACK (on_pause_button_pressed), NULL);
+	colon_0 = gtk_image_new_from_file("data/colon.png");
+	gtk_grid_attach(GTK_GRID(main_grid), colon_0, 2,0,1,1);
 
-	// -------------------------------------------------------------------- Quit
-	quit_button = gtk_button_new_with_label("quit");
-	gtk_grid_attach (GTK_GRID (grid), quit_button, 1,1,1,1);	
-	g_signal_connect (quit_button, "clicked", G_CALLBACK (on_quit_button_pressed), NULL);
+	colon_1 = gtk_image_new_from_file("data/colon.png");
+	gtk_grid_attach(GTK_GRID(main_grid), colon_1, 5,0,1,1);
+
+	pause_button = create_button("Pause", on_pause_button_pressed, 3,3,3,1);
+	create_button("Quit", on_quit_button_pressed, 6,3,2,1);
+
+	on_timer_timeout(NULL);
 
 	g_timeout_add(1000, on_timer_timeout, NULL);
 
-    gtk_widget_show_all(window);
+    gtk_widget_show_all(main_window);
 
     gtk_main();
 
-	return status;
+	return 0;
 }
