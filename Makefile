@@ -8,4 +8,4 @@ build/main.o: src/main.c
 		gcc -c src/main.c `pkg-config --cflags gtk+-3.0` `pkg-config --libs gtk+-3.0` -o build/main.o
 
 clean:
-	rm build/* percentage_calculator
+	rm build/main.o percentage_calculator
